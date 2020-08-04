@@ -1,0 +1,41 @@
+expr > EOL* expr' (EOL* (expr' | Epsilon | EOF))* EOF
+expr' -> assign | PrintFunc | ForCall | Cond_Stmt | ReturnStmt
+
+assign -> IDENTIFIER = term
+
+func_call -> IDENTIFIER ( Args_List | Epsilon )
+
+PrintFunc -> PRINT PrintArgs
+PrintArgs -> LITERAL Optl_Print_Args
+Optl_Print_Args -> , Term Optl_Print_Args' | Epsilon
+Optl_Print_Args' -> , PrintArgs | Epsilon
+
+Args_List -> Term Args_List'
+Args_List' -> , Term Args_List'
+Args_List' -> Epsilon
+
+ForCall -> FOR IDENTIFIER IN IDENTIFIER ( Factor , Factor ) : Func_Code
+DefCall -> DEF IDENTIFIER ( Args_List | Epsilon ) : Func_Code
+Return_Stmt -> RETURN term
+Cond_Stmt -> Cond_KeyWd Term: Func_Code
+Else_Stmt -> ELSE : Func_Code
+
+Func_Code -> EOL INDENT expr' Func_Code' DedentProd
+Func_Code' -> EOL expr' Func_Code'
+Func_Code' -> Epsilon
+
+Array -> IDENTIFIER [ Args_List ]
+Cond_KeyWd -> IF | ELIF | WHILE
+Comparison -> Term Rel_Op Term
+DedentProd -> DEDENT | EOF
+ArithOps -> + | - | * | / | ** | %
+Rel_Op -> == | != | <= | >= | > | <
+Term -> Factor Term'
+Term' -> (ArithOps | Rel_Op) Factor Term'
+Term' -> Epsilon
+Factor -> NUMBER
+Factor -> IDENTIFIER FactorP
+Factor -> Literal
+FactorP -> ( Args_List | Epsilon )
+FactorP -> [ Args_List ]
+FactorP -> Epsilon
