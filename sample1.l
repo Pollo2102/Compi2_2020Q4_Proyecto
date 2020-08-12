@@ -26,16 +26,24 @@ LETTER [a-zA-Z]
 
 %%
 
+\#[^\n]* {  }
 \n\t+   { return makeToken(yytext, yyleng - 1, token::TK_INDENT); }
-[ \n]   { /* Nothing */}
+\n      { return makeToken(yytext, yyleng, token::TK_EOL); }
+[ ]     { }
+"print" { return makeToken(yytext, yyleng, token::KW_PRINT); }
 "+"     { return makeToken(yytext, yyleng, token::OP_ADD); }
 "-"     { return makeToken(yytext, yyleng, token::OP_SUB); }
 "**"    { return makeToken(yytext, yyleng, token::OP_POW); }
 "*"     { return makeToken(yytext, yyleng, token::OP_MUL); }
 "/"     { return makeToken(yytext, yyleng, token::OP_DIV); }
 "%"     { return makeToken(yytext, yyleng, token::OP_MOD); }
-"("     { return makeToken(yytext, yyleng, token::OP_OPENPAR); }
-")"     { return makeToken(yytext, yyleng, token::OP_CLOSEPAR); }
+"("     { return makeToken(yytext, yyleng, token::TK_OPENPAR); }
+")"     { return makeToken(yytext, yyleng, token::TK_CLOSEPAR); }
+"\"".*"\"" {
+    std::string txt(&yytext[1], &yytext[yyleng - 1]);
+    yylval.emplace<std::string>(txt.c_str(), txt.size());
+    return makeToken(txt.c_str(), txt.size(), token::TK_LITERAL);
+}
 {DIGIT}+    {
     yylval.emplace<int>(std::strtol(yytext, nullptr, 10));
     return makeToken(yytext, yyleng, token::TK_NUMBER);
@@ -44,7 +52,7 @@ LETTER [a-zA-Z]
     yylval.emplace<std::string>(yytext, yyleng);
     return makeToken(yytext, yyleng, token::TK_IDENT);
 }
-.       { return makeToken(yytext, yyleng, token::TK_ERROR); }
+.       { std::cout << yytext << "\n"; return makeToken(yytext, yyleng, token::TK_ERROR); }
 
 %%
 
