@@ -55,7 +55,7 @@ namespace Expr
 
 %token TK_OPENPAR "("
 %token TK_CLOSEPAR ")"
-%token TK_ASSIGN "="
+%token OP_ASSIGN "="
 %token TK_COMMA ","
 %token TK_EOL "EOL"
 %token TK_INDENT
@@ -70,6 +70,7 @@ namespace Expr
 %token KW_DEF   "def"
 %token KW_FOR   "for"
 %token KW_IN    "in"
+%token KW_INPUT "input"
 
 %token<int> TK_NUMBER "number"
 %token<std::string> TK_IDENT "identifier"
@@ -79,7 +80,8 @@ namespace Expr
 %type<int> expr
 %type<int> term
 %type<int> factor
-%type<int> asgn
+%type<int> asgn asgnP
+%type<int> input
 %type<std::string> print printArgs optl_print_args optl_print_argsP
 
 %%
@@ -87,19 +89,27 @@ namespace Expr
 expr: EOLP exprP expr2 { }
 ;
 
-exprP: asgn | print
+exprP: asgn | print | input
 ;
 
 expr2: EOLP exprP expr2 | EOLP expr2 | %empty
 ;
 
-expr: expr "+" term { $$ = $1 + $3; }
-     | expr OP_SUB term { $$ = $1 - $3; }
-     | term { $$ = $1; }
+
+
+input: "input" "(" TK_LITERAL ")" { 
+        std::string number;
+        std::cout << $3 << '\n';
+        std::cin >>  number;
+        $$ = atoi(number.c_str());
+ }
 ;
 
+asgn: TK_IDENT "=" asgnP { vars.emplace($1, $3); }
+;
 
-asgn: TK_IDENT "=" expr { vars.emplace($1, $3); }
+asgnP:  term { $$ = $1; }
+        | input { $$ = $1; }
 ;
 
 print: KW_PRINT printArgs { std::cout << $2 << '\n'; }
@@ -132,7 +142,7 @@ term: factor "+" term { $$ = $1 + $3; }
 ;
 
 factor: TK_NUMBER { $$ = $1; }
-        | TK_IDENT factorP {$$ = vars[$1]; }
+        | TK_IDENT factorP { $$ = vars[$1]; }
 /*         | TK_LITERAL */
 ;
 

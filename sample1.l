@@ -31,15 +31,26 @@ LETTER [a-zA-Z]
 \n      { return makeToken(yytext, yyleng, token::TK_EOL); }
 [ ]     { }
 "print" { return makeToken(yytext, yyleng, token::KW_PRINT); }
+"input" { return makeToken(yytext, yyleng, token::KW_INPUT); }
 "+"     { return makeToken(yytext, yyleng, token::OP_ADD); }
 "-"     { return makeToken(yytext, yyleng, token::OP_SUB); }
 "**"    { return makeToken(yytext, yyleng, token::OP_POW); }
 "*"     { return makeToken(yytext, yyleng, token::OP_MUL); }
 "/"     { return makeToken(yytext, yyleng, token::OP_DIV); }
 "%"     { return makeToken(yytext, yyleng, token::OP_MOD); }
+
+"=="    { return makeToken(yytext, yyleng, token::REL_EQ); }
+"<="    { return makeToken(yytext, yyleng, token::REL_LEQ); }
+">="    { return makeToken(yytext, yyleng, token::REL_GTE); }
+"!="    { return makeToken(yytext, yyleng, token::REL_NEQ); }
+"<"     { return makeToken(yytext, yyleng, token::REL_LT); }
+">"     { return makeToken(yytext, yyleng, token::REL_GT); }
+
 "("     { return makeToken(yytext, yyleng, token::TK_OPENPAR); }
 ")"     { return makeToken(yytext, yyleng, token::TK_CLOSEPAR); }
-"\"".*"\"" {
+"="     { return makeToken(yytext, yyleng, token::OP_ASSIGN); }
+","     { return makeToken(yytext, yyleng, token::TK_COMMA); }
+"\""[^"]*"\"" {
     std::string txt(&yytext[1], &yytext[yyleng - 1]);
     yylval.emplace<std::string>(txt.c_str(), txt.size());
     return makeToken(txt.c_str(), txt.size(), token::TK_LITERAL);
