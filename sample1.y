@@ -34,6 +34,7 @@ namespace Expr
         void Parser::error (const std::string& msg)
         {
                 std::cerr << msg << '\n';
+                throw 1;
         }
 }
 
@@ -57,6 +58,7 @@ namespace Expr
 %token TK_CLOSEPAR ")"
 %token OP_ASSIGN "="
 %token TK_COMMA ","
+%token TK_COLON ":"
 %token TK_EOL "EOL"
 %token TK_INDENT
 %token TK_DEDENT
@@ -76,6 +78,7 @@ namespace Expr
 %token<std::string> TK_IDENT "identifier"
 %token<std::string> TK_LITERAL "literal"
 %token OP_SEMICOLON ";"
+%token END 0 "EOF"
 %token TK_ERROR "unknown token"
 %type<int> expr
 %type<int> term
@@ -86,13 +89,13 @@ namespace Expr
 
 %%
 
-expr: EOLP exprP expr2 { }
+expr: expr2 EOLP { }
 ;
 
-exprP: asgn | print | input
+exprP: asgn | print | input | cond_stmt | while_stmt | for_stmt
 ;
 
-expr2: EOLP exprP expr2 | EOLP expr2 | %empty
+expr2: expr2 EOLP exprP | %empty
 ;
 
 
@@ -126,18 +129,41 @@ optl_print_argsP: "," printArgs { $$ = $2; }
                 | %empty { $$ = ""; }
 ;
 
-term: factor "+" term { $$ = $1 + $3; }
-     |  factor "-" term { $$ = $1 - $3; }
-     |  factor "*" term { $$ = $1 * $3; }
-     |  factor "/" term { $$ = $1 / $3; }
-     |  factor "**" term { $$ = pow($1, $3); }
-     |  factor "%" term { $$ = $1 % $3; }
-     |  factor "==" term { $$ = $1 == $3; }
-     |  factor "!=" term { $$ = $1 != $3; }
-     |  factor "<=" term { $$ = $1 <= $3; }
-     |  factor ">=" term { $$ = $1 >= $3; }
-     |  factor ">" term { $$ = $1 > $3; }
-     |  factor "<" term { $$ = $1 < $3; }
+cond_stmt: "if" term ":" func_code cond_stmtP
+;
+
+cond_stmtP: "elif" term ":" func_code cond_stmtP
+           | "else" ":" func_code 
+           | %empty
+;
+
+while_stmt: "while" term ":" func_code
+;
+
+for_stmt: "for" TK_IDENT "in" TK_IDENT "(" factor "," factor ")" ":" func_code
+;
+
+func_code: TK_EOL TK_INDENT exprP func_codeP dedent_prod
+;
+
+func_codeP: func_codeP TK_EOL exprP
+            | %empty
+;
+
+
+
+term: term "+" factor { $$ = $1 + $3; }
+     |  term "-" factor { $$ = $1 - $3; }
+     |  term "*" factor { $$ = $1 * $3; }
+     |  term "/" factor { $$ = $1 / $3; }
+     |  term "**" factor { $$ = pow($1, $3); }
+     |  term "%" factor { $$ = $1 % $3; }
+     |  term "==" factor { $$ = $1 == $3; }
+     |  term "!=" factor { $$ = $1 != $3; }
+     |  term "<=" factor { $$ = $1 <= $3; }
+     |  term ">=" factor { $$ = $1 >= $3; }
+     |  term ">" factor { $$ = $1 > $3; }
+     |  term "<" factor { $$ = $1 < $3; }
      | factor   { $$ = $1; }
 ;
 
@@ -146,10 +172,12 @@ factor: TK_NUMBER { $$ = $1; }
 /*         | TK_LITERAL */
 ;
 
-factorP: "(" args_list ")"
-        | "(" ")"
+factorP: "(" opt_args_list ")"
         | "[" args_list "]"
         | %empty
+;
+
+opt_args_list: args_list | %empty
 ;
 
 args_list: term args_listP
@@ -159,6 +187,10 @@ args_listP: "," term args_listP
            | %empty
 ;
 
-EOLP: TK_EOL EOLP
+EOLP: EOLP TK_EOL
         | %empty
+;
+
+dedent_prod: dedent_prod TK_DEDENT
+             | %empty
 ;

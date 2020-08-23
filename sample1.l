@@ -7,6 +7,7 @@
 
 %{
 #include <cstdio>
+#include <stack>
 #include "expr_lexer.h"
 
 #define YY_EXTRA_TYPE std::istream*
@@ -18,6 +19,7 @@
             result = in->gcount(); \
         } while (0)
 
+static std::stack<int> indentation_stack;
 
 %}
 
@@ -27,11 +29,46 @@ LETTER [a-zA-Z]
 %%
 
 \#[^\n]* {  }
+[\t]+\n { return makeToken(yytext, yyleng, token::TK_EOL); }
+^[\t]+/[^\n]  { 
+                int ind_token = handleIndent(yyleng);
+                if (ind_token == token::TK_INDENT)
+                    return makeToken(yytext, yyleng, token::TK_INDENT); 
+                else if (ind_token == token::TK_DEDENT) {
+                    std::cout << "tab dedent\n";
+                    return makeToken(yytext, yyleng, token::TK_DEDENT); 
+                }
+            }
+^[ ]+/[^\n]   { 
+                int ind_token = handleIndent(yyleng);
+                if (ind_token == token::TK_INDENT)
+                    return makeToken(yytext, yyleng, token::TK_INDENT); 
+                else if (ind_token == token::TK_DEDENT) {
+                    std::cout << "space dedent\n";
+                    return makeToken(yytext, yyleng, token::TK_DEDENT);  
+                }
+            }
+\n/[^\n|^\t|^\ ]  {
+                int ind_token = handleIndent(0); 
+                if (ind_token == token::TK_INDENT)
+                    return makeToken(yytext, yyleng, token::TK_INDENT); 
+                else if (ind_token == token::TK_DEDENT) {
+                    std::cout << "neutral dedent\n";
+                    return makeToken(yytext, yyleng, token::TK_DEDENT); 
+                }
+}
 \n\t+   { return makeToken(yytext, yyleng - 1, token::TK_INDENT); }
 \n      { return makeToken(yytext, yyleng, token::TK_EOL); }
 [ ]     { }
 "print" { return makeToken(yytext, yyleng, token::KW_PRINT); }
 "input" { return makeToken(yytext, yyleng, token::KW_INPUT); }
+"if"    { return makeToken(yytext, yyleng, token::KW_IF); }
+"elif"  { std::cout << "FLAG\n"; return makeToken(yytext, yyleng, token::KW_ELIF); }
+"else"  { return makeToken(yytext, yyleng, token::KW_ELSE); }
+"while" { return makeToken(yytext, yyleng, token::KW_WHILE); }
+"for"   { return makeToken(yytext, yyleng, token::KW_FOR); }
+"in"    { return makeToken(yytext, yyleng, token::KW_IN); }
+"def"   { return makeToken(yytext, yyleng, token::KW_DEF); }
 "+"     { return makeToken(yytext, yyleng, token::OP_ADD); }
 "-"     { return makeToken(yytext, yyleng, token::OP_SUB); }
 "**"    { return makeToken(yytext, yyleng, token::OP_POW); }
@@ -50,7 +87,13 @@ LETTER [a-zA-Z]
 ")"     { return makeToken(yytext, yyleng, token::TK_CLOSEPAR); }
 "="     { return makeToken(yytext, yyleng, token::OP_ASSIGN); }
 ","     { return makeToken(yytext, yyleng, token::TK_COMMA); }
+":"     { return makeToken(yytext, yyleng, token::TK_COLON); }
 "\""[^"]*"\"" {
+    std::string txt(&yytext[1], &yytext[yyleng - 1]);
+    yylval.emplace<std::string>(txt.c_str(), txt.size());
+    return makeToken(txt.c_str(), txt.size(), token::TK_LITERAL);
+}
+"\'"[^\']*"\'" {
     std::string txt(&yytext[1], &yytext[yyleng - 1]);
     yylval.emplace<std::string>(txt.c_str(), txt.size());
     return makeToken(txt.c_str(), txt.size(), token::TK_LITERAL);
@@ -60,12 +103,15 @@ LETTER [a-zA-Z]
     return makeToken(yytext, yyleng, token::TK_NUMBER);
 }
 ({LETTER}|_)({LETTER}|_|{DIGIT})* {
+    /* std::cout << yytext << '\n'; */
     yylval.emplace<std::string>(yytext, yyleng);
     return makeToken(yytext, yyleng, token::TK_IDENT);
 }
 .       { std::cout << yytext << "\n"; return makeToken(yytext, yyleng, token::TK_ERROR); }
 
 %%
+
+
 
 ExprLexer::ExprLexer(std::istream &in) 
 : in(in) 
@@ -78,10 +124,21 @@ ExprLexer::~ExprLexer() {
     yylex_destroy(scanner);
 }
 
-int ExprLexer::handleIndent(int indentAmount) // -1 = dedent, 0 = no indent, 1 = indent
+int ExprLexer::handleIndent(int indentAmount)
 {
-    // Finish function
-    return 0;
+    int cur_indent = indent_stack.top();
+    if (indentAmount == cur_indent) return -1;
+    else if (indentAmount < cur_indent) {
+        while (indentAmount != cur_indent) {
+            indent_stack.pop();
+            cur_indent = indent_stack.top();
+        }
+        return Expr::Parser::token::TK_DEDENT;
+    }
+    else {
+        indent_stack.push(indentAmount);
+        return Expr::Parser::token::TK_INDENT;
+    }
 }
 
 int ExprLexer::getLineNo() {

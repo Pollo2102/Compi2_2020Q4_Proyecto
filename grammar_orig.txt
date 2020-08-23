@@ -17,7 +17,8 @@ Args_List' -> Epsilon
 ForCall -> FOR IDENTIFIER IN IDENTIFIER ( Factor , Factor ) : Func_Code
 DefCall -> DEF IDENTIFIER ( Args_List | Epsilon ) : Func_Code
 Return_Stmt -> RETURN term
-Cond_Stmt -> Cond_KeyWd Term: Func_Code
+Cond_Stmt -> Cond_KeyWd Term: Func_Code Cond_StmtP
+Cond_StmtP -> Cond_Stmt | Else_Stmt | Epsilon
 Else_Stmt -> ELSE : Func_Code
 
 Func_Code -> EOL INDENT expr' Func_Code' DedentProd
