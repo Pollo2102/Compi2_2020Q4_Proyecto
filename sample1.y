@@ -153,8 +153,7 @@ while_stmt: "while" term ":" func_code
 for_stmt: "for" TK_IDENT "in" TK_IDENT "(" term "," term ")" ":" func_code
 ;
 
-func_code: TK_EOL TK_INDENT exprP func_codeP dedent_prod
-           | TK_EOL TK_INDENT exprP TK_EOL dedent_prod
+func_code: TK_EOL TK_INDENT exprP EOLP func_codeP dedent_prod
 ;
 
 func_codeP: func_codeP exprP TK_EOL
