@@ -56,6 +56,8 @@ namespace Expr
 
 %token TK_OPENPAR "("
 %token TK_CLOSEPAR ")"
+%token TK_OPENBRK "["
+%token TK_CLOSEBRK "]"
 %token OP_ASSIGN "="
 %token TK_COMMA ","
 %token TK_COLON ":"
@@ -92,7 +94,15 @@ namespace Expr
 expr: expr2 EOLP { }
 ;
 
-exprP: asgn | print | input | cond_stmt | while_stmt | for_stmt
+exprP:  asgn 
+        | print 
+        | input 
+        | cond_stmt 
+        | while_stmt 
+        | for_stmt 
+        | func_def 
+        | return_stmt
+        | func_call
 ;
 
 expr2: expr2 EOLP exprP | %empty
@@ -140,14 +150,24 @@ cond_stmtP: "elif" term ":" func_code cond_stmtP
 while_stmt: "while" term ":" func_code
 ;
 
-for_stmt: "for" TK_IDENT "in" TK_IDENT "(" factor "," factor ")" ":" func_code
+for_stmt: "for" TK_IDENT "in" TK_IDENT "(" term "," term ")" ":" func_code
 ;
 
 func_code: TK_EOL TK_INDENT exprP func_codeP dedent_prod
+           | TK_EOL TK_INDENT exprP TK_EOL dedent_prod
 ;
 
-func_codeP: func_codeP TK_EOL exprP
+func_codeP: func_codeP exprP TK_EOL
             | %empty
+;
+
+func_def: "def" TK_IDENT "(" opt_args_list ")" ":" func_code
+;
+
+func_call: TK_IDENT "(" opt_args_list ")"
+;
+
+return_stmt: "return" term
 ;
 
 
@@ -168,8 +188,7 @@ term: term "+" factor { $$ = $1 + $3; }
 ;
 
 factor: TK_NUMBER { $$ = $1; }
-        | TK_IDENT factorP { $$ = vars[$1]; }
-/*         | TK_LITERAL */
+        | TK_IDENT factorP { $$ = 1; }
 ;
 
 factorP: "(" opt_args_list ")"
@@ -191,6 +210,6 @@ EOLP: EOLP TK_EOL
         | %empty
 ;
 
-dedent_prod: dedent_prod TK_DEDENT
-             | %empty
+dedent_prod: TK_DEDENT
+             | END
 ;

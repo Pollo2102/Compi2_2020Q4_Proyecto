@@ -2,7 +2,7 @@
 
 
 TEST_FILES_PATH="../TinyPythonEjemplos"
-EXE_PATH="./build/expr"
+EXE_PATH="./build/TinyPython"
 
 SUCCESSFUL=0
 FAILED=0

@@ -32,28 +32,41 @@ LETTER [a-zA-Z]
 [\t]+\n { return makeToken(yytext, yyleng, token::TK_EOL); }
 ^[\t]+/[^\n]  { 
                 int ind_token = handleIndent(yyleng);
-                if (ind_token == token::TK_INDENT)
+                if (ind_token == token::TK_INDENT) {
+                    /* std::cout << "Indent\n"; */
                     return makeToken(yytext, yyleng, token::TK_INDENT); 
+                }
                 else if (ind_token == token::TK_DEDENT) {
-                    std::cout << "tab dedent\n";
+                    /* std::cout << "tab dedent\n"; */
                     return makeToken(yytext, yyleng, token::TK_DEDENT); 
                 }
             }
 ^[ ]+/[^\n]   { 
                 int ind_token = handleIndent(yyleng);
-                if (ind_token == token::TK_INDENT)
+                if (ind_token == token::TK_INDENT) {
+                    /* std::cout << "Indent\n"; */
                     return makeToken(yytext, yyleng, token::TK_INDENT); 
+                }
                 else if (ind_token == token::TK_DEDENT) {
-                    std::cout << "space dedent\n";
+                    /* std::cout << "space dedent\n"; */
                     return makeToken(yytext, yyleng, token::TK_DEDENT);  
                 }
             }
-\n/[^\n|^\t|^\ ]  {
+\n/\n   {
+    return makeToken(yytext, yyleng, token::TK_EOL);
+}            
+\n/[^\n\t\ ]  {
                 int ind_token = handleIndent(0); 
-                if (ind_token == token::TK_INDENT)
+                if (!is_balanced(0)) {
+                    std::cout << "Balance\n";
+                    unput('\n');
+                }
+                if (ind_token == token::TK_INDENT) {
+                    /* std::cout << "Indent\n"; */
                     return makeToken(yytext, yyleng, token::TK_INDENT); 
+                }
                 else if (ind_token == token::TK_DEDENT) {
-                    std::cout << "neutral dedent\n";
+                    /* std::cout << "Dedent\n"; */
                     return makeToken(yytext, yyleng, token::TK_DEDENT); 
                 }
 }
@@ -63,12 +76,13 @@ LETTER [a-zA-Z]
 "print" { return makeToken(yytext, yyleng, token::KW_PRINT); }
 "input" { return makeToken(yytext, yyleng, token::KW_INPUT); }
 "if"    { return makeToken(yytext, yyleng, token::KW_IF); }
-"elif"  { std::cout << "FLAG\n"; return makeToken(yytext, yyleng, token::KW_ELIF); }
+"elif"  { return makeToken(yytext, yyleng, token::KW_ELIF); }
 "else"  { return makeToken(yytext, yyleng, token::KW_ELSE); }
 "while" { return makeToken(yytext, yyleng, token::KW_WHILE); }
 "for"   { return makeToken(yytext, yyleng, token::KW_FOR); }
 "in"    { return makeToken(yytext, yyleng, token::KW_IN); }
 "def"   { return makeToken(yytext, yyleng, token::KW_DEF); }
+"return" { return makeToken(yytext, yyleng, token::KW_RETURN); }
 "+"     { return makeToken(yytext, yyleng, token::OP_ADD); }
 "-"     { return makeToken(yytext, yyleng, token::OP_SUB); }
 "**"    { return makeToken(yytext, yyleng, token::OP_POW); }
@@ -85,6 +99,8 @@ LETTER [a-zA-Z]
 
 "("     { return makeToken(yytext, yyleng, token::TK_OPENPAR); }
 ")"     { return makeToken(yytext, yyleng, token::TK_CLOSEPAR); }
+"["     { return makeToken(yytext, yyleng, token::TK_OPENBRK); }
+"]"     { return makeToken(yytext, yyleng, token::TK_CLOSEBRK); }
 "="     { return makeToken(yytext, yyleng, token::OP_ASSIGN); }
 ","     { return makeToken(yytext, yyleng, token::TK_COMMA); }
 ":"     { return makeToken(yytext, yyleng, token::TK_COLON); }
@@ -103,7 +119,7 @@ LETTER [a-zA-Z]
     return makeToken(yytext, yyleng, token::TK_NUMBER);
 }
 ({LETTER}|_)({LETTER}|_|{DIGIT})* {
-    /* std::cout << yytext << '\n'; */
+    std::cout << yytext << '\n';
     yylval.emplace<std::string>(yytext, yyleng);
     return makeToken(yytext, yyleng, token::TK_IDENT);
 }
@@ -124,15 +140,20 @@ ExprLexer::~ExprLexer() {
     yylex_destroy(scanner);
 }
 
+bool ExprLexer::is_balanced(int wsp)
+{
+    if (indent_stack.top() != wsp) {
+        return false;
+    }
+    return true;
+}
+
 int ExprLexer::handleIndent(int indentAmount)
 {
     int cur_indent = indent_stack.top();
     if (indentAmount == cur_indent) return -1;
     else if (indentAmount < cur_indent) {
-        while (indentAmount != cur_indent) {
-            indent_stack.pop();
-            cur_indent = indent_stack.top();
-        }
+        indent_stack.pop();
         return Expr::Parser::token::TK_DEDENT;
     }
     else {

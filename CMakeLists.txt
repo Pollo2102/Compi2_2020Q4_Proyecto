@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
-project(expr)
+project(TinyPython)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR/cmake/}")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,6 +11,7 @@ set (LEXER_SRC "${PROJECT_SOURCE_DIR}/sample1.l")
 set (PARSER_SRC "${PROJECT_SOURCE_DIR}/sample1.y")
 
 find_package(FLEX REQUIRED)
+find_package(TREECC REQUIRED)
 
 # Run flex to generate the lexer
 add_custom_command(
@@ -28,9 +29,16 @@ add_custom_command(
     MAIN_DEPENDENCY ${PARSER_SRC}
 )
 
+add_custom_command(
+    OUTPUT expr_ast.cpp
+    COMMAND ${TREECC} -o expr_ast.cpp -h expr_ast.h ${PROJECT_SOURCE_DIR}/expr_ast.tc
+    MAIN_DEPENDENCY ${PROJECT_SOURCE_DIR}/expr_ast.tc
+)
+
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(${PROJECT_NAME} expr_lexer.cpp
+add_executable(${PROJECT_NAME}  expr_ast.cpp
+                                expr_lexer.cpp
                                 expr_parser.cpp
                                 main.cpp)

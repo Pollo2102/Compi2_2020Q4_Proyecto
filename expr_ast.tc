@@ -1,0 +1,211 @@
+%option lang = "C++"
+%option namespace = "Ast"
+/* %option reentrant */
+
+%decls %{
+
+    #include <string>
+    #include <cstddef>
+    #include <iostream>
+    #include <vector>
+    #include <cmath>
+    #include <unordered_map>
+
+
+    using string_t = std::string;
+    namespace Ast {
+        class AstNode;
+
+        using NodeVector = std::vector<AstNode *>;
+        using SymbolTable = std::unordered_map<std::string, int>;
+    }
+
+%}
+
+%{
+
+    #include "expr_ast.h"
+
+%}
+
+%node AstNode %abstract %typedef
+%node Expr AstNode %abstract
+
+%node BinaryExpr Expr %abstract = {
+    Expr *expr1;
+    Expr *expr2;
+}
+
+%node NumExpr Expr = {
+    int value;
+}
+
+%node IdExpr Expr = {
+    string_t id;
+}
+
+%node AddExpr BinaryExpr
+%node SubExpr BinaryExpr
+%node MulExpr BinaryExpr
+%node DivExpr BinaryExpr
+%node ModExpr BinaryExpr
+%node PowExpr BinaryExpr
+%node GTExpr BinaryExpr
+%node LTExpr BinaryExpr
+%node GEExpr BinaryExpr
+%node LEExpr BinaryExpr
+%node EqExpr BinaryExpr
+%node NotExpr BinaryExpr
+
+%node Stmt AstNode %abstract
+
+%node AssignStmt Stmt = {
+    string_t id;
+    Expr *expr;
+}
+
+%node PrintStmt Stmt = {
+    Stmt *printArgs;
+}
+
+%node PrintArgs Stmt = {
+    string_t literal;
+    Stmt *optl_print_args;
+}
+
+%node Optl_Print_Args Stmt = {
+    Expr *term;
+    Stmt *optl_print_argsP;
+}
+
+%node Optl_Print_ArgsP Stmt = {
+    Stmt *PrintArgs;
+}
+
+%node Input Stmt = {
+    string_t literal;
+    string_t input_text;
+}
+
+%node BlockStmt Stmt = {
+    NodeVector l;
+}
+
+%node IfStmt Stmt = {
+    Expr *cond;
+    Stmt *true_blk;
+    Stmt *false_blk;
+}
+
+%node ElseStmt Stmt = {
+    Stmt *block;
+}
+
+%node WhileStmt Stmt = {
+    Expr *cond;
+    Stmt *block;
+}
+
+%node ForStmt Stmt = {
+    NumExpr *cur_num;
+    NumExpr *last_num;
+    Stmt *block;
+}
+
+%operation %virtual int eval(AstNode *this, SymbolTable& vars);
+
+eval(AddExpr) { return expr1->eval(vars) + expr2->eval(vars); }
+eval(SubExpr) { return expr1->eval(vars) - expr2->eval(vars); }
+eval(MulExpr) { return expr1->eval(vars) * expr2->eval(vars); }
+eval(DivExpr) { return expr1->eval(vars) / expr2->eval(vars); }
+eval(PowExpr) { return pow(expr1->eval(vars), expr2->eval(vars)); }
+eval(ModExpr) { return expr1->eval(vars) % expr2->eval(vars); }
+eval(GTExpr) { return expr1->eval(vars) > expr2->eval(vars); }
+eval(LTExpr) { return expr1->eval(vars) < expr2->eval(vars); }
+eval(GEExpr) { return expr1->eval(vars) >= expr2->eval(vars); }
+eval(LEExpr) { return expr1->eval(vars) <= expr2->eval(vars); }
+eval(EqExpr) { return expr1->eval(vars) == expr2->eval(vars); }
+eval(NotExpr) { return expr1->eval(vars) != expr2->eval(vars); }
+
+eval(NumExpr) {
+    return value;
+}
+
+eval(IdExpr) {
+    auto it = vars.find(id);
+
+
+    if (it != vars.end())
+        return it->second;
+    else {
+        std::cerr << linenum__ <<  ": Undefined reference to variable: " << id << '\n';
+        throw 1;
+    }
+}
+
+eval(AssignStmt) {
+    int value = expr->eval(vars);
+    vars[id] = value;
+
+    return 0;
+}
+
+eval(BlockStmt) {
+    for (auto stmt : l) {
+        stmt->eval(vars);
+    }
+
+    return 0;
+}
+
+eval(IfStmt) {
+    if (cond->eval(vars))
+        true_blk->eval(vars);
+    else if (false_blk != nullptr) 
+        false_blk->eval(vars);
+
+    return 0;
+}
+
+eval(WhileStmt) {
+    while (cond->eval(vars))
+        block->eval(vars);
+
+    return 0;
+}
+
+eval(PrintStmt) {
+    std::cout << printArgs->eval(vars) << std::endl;
+
+    return 0;
+}
+
+eval(PrintArgs) {
+    
+    return 0;
+}
+
+eval(Optl_Print_Args) {
+
+    return 0;
+}
+
+eval(Optl_Print_ArgsP) {
+
+    return 0;
+}
+
+eval(Input) {
+
+    return 0;
+}
+
+eval(ForStmt) {
+
+    return 0;
+}
+
+eval(ElseStmt) {
+
+    return 0;
+}

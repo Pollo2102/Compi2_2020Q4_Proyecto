@@ -24,6 +24,7 @@ public:
     std::string getText() { return text; }
     int handleIndent(int indentAmount);
     int getLineNo();
+    bool is_balanced(int wsp);
 
 private: 
     /* Flex will generate this function */
