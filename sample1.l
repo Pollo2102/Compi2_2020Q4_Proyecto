@@ -119,7 +119,7 @@ LETTER [a-zA-Z]
     return makeToken(yytext, yyleng, token::TK_NUMBER);
 }
 ({LETTER}|_)({LETTER}|_|{DIGIT})* {
-    std::cout << yytext << '\n';
+    /* std::cout << yytext << '\n'; */
     yylval.emplace<std::string>(yytext, yyleng);
     return makeToken(yytext, yyleng, token::TK_IDENT);
 }

@@ -3,6 +3,7 @@
 
 %parse-param { std::unordered_map<std::string, int>& vars}
 %parse-param { ExprLexer& lexer }
+%parse-param { Ast::AstNode *&root }
 
 %define parse.error verbose
 %define api.value.type variant
@@ -13,6 +14,7 @@
 %code requires {
 #include <unordered_map>
 #include <string>
+#include "expr_ast.h"
 
 class ExprLexer;
 }
@@ -37,6 +39,8 @@ namespace Expr
                 throw 1;
         }
 }
+
+Ast::NodeVector stmts;
 
 %}
 
@@ -82,61 +86,65 @@ namespace Expr
 %token OP_SEMICOLON ";"
 %token END 0 "EOF"
 %token TK_ERROR "unknown token"
+
+%type<Ast::BlockStmt *> expr2
 %type<int> expr
-%type<int> term
-%type<int> factor
-%type<int> asgn asgnP
-%type<int> input
-%type<std::string> print printArgs optl_print_args optl_print_argsP
+%type<Ast::Stmt *> exprP
+%type<Ast::Expr *> term
+%type<Ast::Expr *> factor
+%type<Ast::AssignStmt *> asgn
+%type<Ast::Expr *> asgnP
+%type<Ast::Input *> input
+%type<Ast::PrintStmt *> print
+%type<Ast::PrintArgs *> printArgs
+%type<Ast::Optl_Print_Args *> optl_print_args
+%type<Ast::Optl_Print_ArgsP *> optl_print_argsP
 
 %%
 
-expr: expr2 EOLP { }
+expr: expr2 EOLP { root = new Ast::BlockStmt(stmts); }
 ;
 
-exprP:  asgn 
-        | print 
-        | input 
-        | cond_stmt 
-        | while_stmt 
-        | for_stmt 
-        | func_def 
-        | return_stmt
-        | func_call
+exprP:  asgn { $$ = $1; }
+        | print { $$ = $1; }
+        | cond_stmt {  }
+        | while_stmt {  }
+        | for_stmt {  }
+        | func_def {  }
+        | return_stmt {  }
+        | func_call {  }
 ;
 
-expr2: expr2 EOLP exprP | %empty
+expr2: expr2 EOLP exprP { stmts.push_back($3); }
+       | %empty  {  }
 ;
 
 
 
 input: "input" "(" TK_LITERAL ")" { 
-        std::string number;
-        std::cout << $3 << '\n';
-        std::cin >>  number;
-        $$ = atoi(number.c_str());
+        $$ = new Ast::Input($3);
  }
 ;
 
-asgn: TK_IDENT "=" asgnP { vars.emplace($1, $3); }
+asgn: TK_IDENT "=" asgnP { $$ = new Ast::AssignStmt($1, $3); }
 ;
 
 asgnP:  term { $$ = $1; }
         | input { $$ = $1; }
 ;
 
-print: KW_PRINT printArgs { std::cout << $2 << '\n'; }
+print: KW_PRINT printArgs { $$ = new Ast::PrintStmt($2); }
 ;
 
-printArgs: TK_LITERAL optl_print_args { $$ = $1 + $2; }
+printArgs: TK_LITERAL optl_print_args { $$ = new Ast::PrintArgs($1, $2); }
 ;
 
-optl_print_args: "," term optl_print_argsP { $$ = std::to_string($2) + $3; }
-                | %empty { $$ = ""; }
+optl_print_args: "," term optl_print_argsP { $$ = new Ast::Optl_Print_Args($2, $3); }
+                | %empty { $$ = nullptr; }
 ;
 
-optl_print_argsP: "," printArgs { $$ = $2; }
-                | %empty { $$ = ""; }
+optl_print_argsP: "," printArgs { $$ = new Ast::Optl_Print_ArgsP($2); }
+                | %empty { $$ = nullptr; }
 ;
 
 cond_stmt: "if" term ":" func_code cond_stmtP
@@ -171,23 +179,23 @@ return_stmt: "return" term
 
 
 
-term: term "+" factor { $$ = $1 + $3; }
-     |  term "-" factor { $$ = $1 - $3; }
-     |  term "*" factor { $$ = $1 * $3; }
-     |  term "/" factor { $$ = $1 / $3; }
-     |  term "**" factor { $$ = pow($1, $3); }
-     |  term "%" factor { $$ = $1 % $3; }
-     |  term "==" factor { $$ = $1 == $3; }
-     |  term "!=" factor { $$ = $1 != $3; }
-     |  term "<=" factor { $$ = $1 <= $3; }
-     |  term ">=" factor { $$ = $1 >= $3; }
-     |  term ">" factor { $$ = $1 > $3; }
-     |  term "<" factor { $$ = $1 < $3; }
+term: term "+" factor {  }
+     |  term "-" factor {  }
+     |  term "*" factor {  }
+     |  term "/" factor {  }
+     |  term "**" factor {  }
+     |  term "%" factor {  }
+     |  term "==" factor {  }
+     |  term "!=" factor {  }
+     |  term "<=" factor {  }
+     |  term ">=" factor {  }
+     |  term ">" factor {  }
+     |  term "<" factor {  }
      | factor   { $$ = $1; }
 ;
 
-factor: TK_NUMBER { $$ = $1; }
-        | TK_IDENT factorP { $$ = 1; }
+factor: TK_NUMBER { $$ = new Ast::NumExpr($1); }
+        | TK_IDENT factorP { $$ = new Ast::IdExpr($1); }
 ;
 
 factorP: "(" opt_args_list ")"

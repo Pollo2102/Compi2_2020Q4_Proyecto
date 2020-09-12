@@ -5,11 +5,14 @@
 %decls %{
 
     #include <string>
+    #include <memory>
     #include <cstddef>
     #include <iostream>
     #include <vector>
     #include <cmath>
     #include <unordered_map>
+    #include <tuple>
+    #include <map>
 
 
     using string_t = std::string;
@@ -26,9 +29,71 @@
 
     #include "expr_ast.h"
 
+    std::map<std::string, bool> registers({
+                                                    {"$t0", true},
+                                                    {"$t1", true},
+                                                    {"$t2", true},
+                                                    {"$t3", true},
+                                                    {"$t4", true},
+                                                    {"$t5", true},
+                                                    {"$t6", true},
+                                                    {"$t7", true},
+                                                    {"$t8", true},
+                                                    {"$t9", true},
+                                            });
+
+    std::vector<std::tuple<std::string, int>> var_table;
+
+    int labelNum = 0;
+
+    std::string getFreeReg() {
+        for(auto &a : registers) {
+            if (a.second == true) {
+                a.second = false;
+                return a.first;
+            }
+        }
+        throw "No available register.\n";
+    }
+
+    void setRegFree(std::string reg) {
+        registers[reg] = true;
+    }
+
+    int getVarOffset(std::string varName) {
+        for (size_t i = 0; i < var_table.size(); i++)
+        {
+            auto temp = var_table[i];
+            if (std::get<0>(temp) == varName) {
+                return (i + 1) * -4;
+            }
+        }
+        std::cout << "Variable not found.\n";
+        throw 1;
+    }
+
+    std::string getNewLabel() {
+        return std::string("label" + std::to_string(labelNum++));
+    }
+
+    template<typename ... Args>
+    std::string string_format(const std::string& format, Args ... args )
+    {
+        size_t size = snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
+        if( size <= 0 ){ throw std::runtime_error( "Error during formatting." ); }
+        std::unique_ptr<char[]> buf( new char[ size ] ); 
+        snprintf( buf.get(), size, format.c_str(), args ... );
+        return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
+    }
+
 %}
 
-%node AstNode %abstract %typedef
+%node AstNode %abstract %typedef = {
+    %nocreate string_t place;
+    %nocreate string_t code;
+    %nocreate int val;
+    %nocreate string_t lit_val;
+}
 %node Expr AstNode %abstract
 
 %node BinaryExpr Expr %abstract = {
@@ -42,6 +107,10 @@
 
 %node IdExpr Expr = {
     string_t id;
+}
+
+%node Literal Expr = {
+    string_t literal;
 }
 
 %node AddExpr BinaryExpr
@@ -65,26 +134,25 @@
 }
 
 %node PrintStmt Stmt = {
-    Stmt *printArgs;
+    PrintArgs *args;
 }
 
 %node PrintArgs Stmt = {
     string_t literal;
-    Stmt *optl_print_args;
+    Optl_Print_Args *optl_print_args;
 }
 
 %node Optl_Print_Args Stmt = {
     Expr *term;
-    Stmt *optl_print_argsP;
+    Optl_Print_ArgsP *optl_print_argsP;
 }
 
 %node Optl_Print_ArgsP Stmt = {
-    Stmt *PrintArgs;
+    PrintArgs *printArgs;
 }
 
-%node Input Stmt = {
+%node Input Expr = {
     string_t literal;
-    string_t input_text;
 }
 
 %node BlockStmt Stmt = {
@@ -112,90 +180,318 @@
     Stmt *block;
 }
 
-%operation %virtual int eval(AstNode *this, SymbolTable& vars);
+%operation %virtual int eval(AstNode *this, SymbolTable& vars, string_t &data);
 
-eval(AddExpr) { return expr1->eval(vars) + expr2->eval(vars); }
-eval(SubExpr) { return expr1->eval(vars) - expr2->eval(vars); }
-eval(MulExpr) { return expr1->eval(vars) * expr2->eval(vars); }
-eval(DivExpr) { return expr1->eval(vars) / expr2->eval(vars); }
-eval(PowExpr) { return pow(expr1->eval(vars), expr2->eval(vars)); }
-eval(ModExpr) { return expr1->eval(vars) % expr2->eval(vars); }
-eval(GTExpr) { return expr1->eval(vars) > expr2->eval(vars); }
-eval(LTExpr) { return expr1->eval(vars) < expr2->eval(vars); }
-eval(GEExpr) { return expr1->eval(vars) >= expr2->eval(vars); }
-eval(LEExpr) { return expr1->eval(vars) <= expr2->eval(vars); }
-eval(EqExpr) { return expr1->eval(vars) == expr2->eval(vars); }
-eval(NotExpr) { return expr1->eval(vars) != expr2->eval(vars); }
+eval(AddExpr) { 
+        expr1->eval(vars, data);
+        expr2->eval(vars, data);
+        if (expr1->isA(NumExpr_kind) && expr2->isA(NumExpr_kind)) {
+            place = expr1->place;
+            code += string_format("li %s, %d\n", place.c_str(), expr1->val + expr2->val);
+            setRegFree(expr2->place);
+        }
+        else if (expr1->isA(IdExpr_kind) && expr2->isA(NumExpr_kind)) {
+            place = expr1->place;
+            code += string_format("addi %s, %s, %d\n", place.c_str(), place.c_str(), expr2->val);
+            setRegFree(expr2->place);
+        }
+        else if (expr1->isA(NumExpr_kind) && expr2->isA(IdExpr_kind)) {
+            place = expr2->place;
+            code += string_format("addi %s, %s, %d\n", place.c_str(), place.c_str(), expr1->val);
+            setRegFree(expr1->place);
+        }
+        else if (expr1->isA(IdExpr_kind) && expr2->isA(IdExpr_kind)) {
+            place = expr1->place;
+            code += string_format("add %s, %s, %s\n", place.c_str(), place.c_str(), expr2->place.c_str());
+            setRegFree(expr2->place);
+        }
+        else {
+            place = expr1->place;
+            code += expr1->code;
+            code += expr2->code;
+            code += string_format("add %s, %s, %s\n", place.c_str(), place.c_str(), expr2->place.c_str());
+            setRegFree(expr2->place);
+        }
+        return 0;
+}
+eval(SubExpr) { 
+        expr1->eval(vars, data);
+        expr2->eval(vars, data);
+        if (expr1->isA(NumExpr_kind) && expr2->isA(NumExpr_kind)) {
+            place = expr1->place;
+            code += string_format("li %s, %d\n", place.c_str(), expr1->val - expr2->val);
+            setRegFree(expr2->place);
+        }
+        else if (expr1->isA(IdExpr_kind) && expr2->isA(NumExpr_kind)) {
+            place = expr1->place;
+            code += string_format("addi %s, %s, -%d\n", place.c_str(), place.c_str(), expr2->val);
+            setRegFree(expr2->place);
+        }
+        else if (expr1->isA(NumExpr_kind) && expr2->isA(IdExpr_kind)) {
+            place = expr2->place;
+            code += string_format("addi %s, %s, -%d\n", place.c_str(), place.c_str(), expr1->val);
+            setRegFree(expr1->place);
+        }
+        else if (expr1->isA(IdExpr_kind) && expr2->isA(IdExpr_kind)) {
+            place = expr1->place;
+            code += string_format("sub %s, %s, %s\n", place.c_str(), place.c_str(), expr2->place.c_str());
+            setRegFree(expr2->place);
+        }
+        else {
+            place = expr1->place;
+            code += expr1->code;
+            code += expr2->code;
+            code += string_format("sub %s, %s, %s\n", place.c_str(), place.c_str(), expr2->place.c_str());
+            setRegFree(expr2->place);
+        }
+        return 0;
+ }
+eval(MulExpr) { 
+    expr1->eval(vars, data);
+    expr2->eval(vars, data);
+    place = expr1->place;
+    code += expr1->code;
+    code += expr2->code;
+    code += string_format("mult %s, %s\n", place.c_str(), expr2->place.c_str());
+    code += string_format("mflo %s\n\n", place.c_str());
+    setRegFree(expr2->place);
+
+    return 0;
+ }
+eval(DivExpr) { 
+    expr1->eval(vars, data);
+    expr2->eval(vars, data);
+    place = expr1->place;
+    code += expr1->code;
+    code += expr2->code;
+    code += string_format("div %s, %s\n", place.c_str(), expr2->place.c_str());
+    code += string_format("mflo %s\n\n", place.c_str());
+    setRegFree(expr2->place);
+
+    return 0;
+ }
+eval(PowExpr) { return pow(expr1->eval(vars, data), expr2->eval(vars, data)); }
+eval(ModExpr) { 
+    expr1->eval(vars, data);
+    expr2->eval(vars, data);
+    place = expr1->place;
+    code += expr1->code;
+    code += expr2->code;
+    code += string_format("div %s, %s\n", place.c_str(), expr2->place.c_str());
+    code += string_format("mfhi %s\n\n", place.c_str());
+    setRegFree(expr2->place);
+
+    return 0;
+ }
+eval(GTExpr) { 
+    expr1->eval(vars, data);
+    expr2->eval(vars, data);
+    place = expr1->place;
+    code += expr1->code;
+    code += expr2->code;
+    code += string_format("\nslt %s, %s, %s\n", place.c_str(), expr2->place.c_str(), place.c_str());
+    setRegFree(expr2->place);
+
+    return 0;
+ }
+eval(LTExpr) { 
+    expr1->eval(vars, data);
+    expr2->eval(vars, data);
+    place = expr1->place;
+    code += expr1->code;
+    code += expr2->code;
+    code += string_format("\nslt %s, %s, %s\n", place.c_str(), place.c_str(), expr2->place.c_str());
+    setRegFree(expr2->place);
+
+    return 0;
+ }
+eval(GEExpr) { 
+    expr1->eval(vars, data);
+    expr2->eval(vars, data);
+    string_t temp = getFreeReg();
+    place = temp;
+    code += expr1->code;
+    code += expr2->code;
+    code += string_format("\nslt %s, %s, %s\n", temp.c_str(), expr2->place.c_str(), expr1->place.c_str());
+    code += string_format("sub %s, %s, %s\n", expr2->place.c_str(), expr2->place.c_str(), expr1->place.c_str());
+    code += string_format("and %s, %s, %s\n\n", temp.c_str(), temp.c_str(), expr2->place.c_str());
+    setRegFree(expr1->place);
+    setRegFree(expr2->place);
+
+    return 0;
+ }
+eval(LEExpr) { 
+    expr1->eval(vars, data);
+    expr2->eval(vars, data);
+    string_t temp = getFreeReg();
+    place = temp;
+    code += expr1->code;
+    code += expr2->code;
+    code += string_format("\nslt %s, %s, %s\n", temp.c_str(), expr1->place.c_str(), expr2->place.c_str());
+    code += string_format("sub %s, %s, %s\n", expr2->place.c_str(), expr2->place.c_str(), expr1->place.c_str());
+    code += string_format("and %s, %s, %s\n\n", temp.c_str(), temp.c_str(), expr2->place.c_str());
+    setRegFree(expr1->place);
+    setRegFree(expr2->place);
+
+    return 0;
+ }
+eval(EqExpr) { 
+    expr1->eval(vars, data);
+    expr2->eval(vars, data);
+    place = expr1->place;
+    code += expr1->code;
+    code += expr2->code;
+    code += string_format("\nsub %s, %s, %s\n", expr1->place.c_str(), expr1->place.c_str(), expr2->place.c_str());
+    setRegFree(expr2->place);
+
+    return 0;
+ }
+eval(NotExpr) { 
+    expr1->eval(vars, data);
+    expr2->eval(vars, data);
+    place = expr1->place;
+    code += expr1->code;
+    code += expr2->code;
+    code += string_format("\nsub %s, %s, %s\n", expr1->place.c_str(), expr1->place.c_str(), expr2->place.c_str());
+    setRegFree(expr2->place);
+
+    return 0;
+ }
 
 eval(NumExpr) {
-    return value;
+    place = getFreeReg();
+    code = string_format("li %s, %d\n", place.c_str(), value);
+    val = value;
+    
+    return 0;
 }
 
 eval(IdExpr) {
-    auto it = vars.find(id);
+    int offset = getVarOffset(id);
+    place = getFreeReg();
+    code += string_format("lw %s, %d($fp)\n", place.c_str(), offset);
 
+    return 0;
+}
 
-    if (it != vars.end())
-        return it->second;
-    else {
-        std::cerr << linenum__ <<  ": Undefined reference to variable: " << id << '\n';
-        throw 1;
-    }
+eval(Literal) {
+    lit_val = literal;
+
+    return 0;
 }
 
 eval(AssignStmt) {
-    int value = expr->eval(vars);
-    vars[id] = value;
+    /* std::cout << expr->getKindName(); */
+    expr->eval(vars, data);
+    vars.emplace(id, 0);
+    var_table.push_back(std::make_tuple(id, 0));
+    code += expr->code;
+    code += "\naddi $sp, $sp, -4\n";
+    code += string_format("sw %s, %d($fp)\n\n", expr->place.c_str(), getVarOffset(id));
+    setRegFree(expr->place);
 
     return 0;
 }
 
 eval(BlockStmt) {
     for (auto stmt : l) {
-        stmt->eval(vars);
+        stmt->eval(vars, data);
+        code += stmt->code;
     }
 
     return 0;
 }
 
 eval(IfStmt) {
-    if (cond->eval(vars))
-        true_blk->eval(vars);
-    else if (false_blk != nullptr) 
-        false_blk->eval(vars);
+    cond->eval(vars, data);
+    true_blk->eval(vars, data);
+    false_blk->eval(vars, data);
+
+    string_t lbif = getNewLabel();
+    string_t lbend = getNewLabel();
+
+    code += cond->code;
+
+    if (!(cond->isA(NotExpr_kind)) && !(cond->isA(GEExpr_kind)) /* && !(cond->isA(LEExpr_kind)) */)
+        code += string_format("\nbeq %s, $zero, %s\n\n", cond->place.c_str(), lbif.c_str());
+    else
+        code += string_format("\nbne %s, $zero, %s\n\n", cond->place.c_str(), lbif.c_str());
+    code += true_blk->code;
+    code += string_format("j %s\n\n%s:\n", lbend.c_str(), lbif.c_str());
+    code += false_blk->code;
+    code += string_format("%s:\n", lbend.c_str());
 
     return 0;
 }
 
 eval(WhileStmt) {
-    while (cond->eval(vars))
-        block->eval(vars);
+    cond->eval(vars, data);
+    block->eval(vars, data);
+
+    string_t lbis = getNewLabel();
+    string_t lbend = getNewLabel();
+
+    code += string_format("%s:\n", lbis.c_str());
+    code += cond->code;
+    if (!(cond->isA(NotExpr_kind)) && !(cond->isA(GEExpr_kind)) /* && !(cond->isA(LEExpr_kind)) */)
+        code += string_format("beq %s, $zero, %s\n\n", cond->place.c_str(), lbend.c_str());
+    else 
+        code += string_format("bne %s, $zero, %s\n\n", cond->place.c_str(), lbend.c_str());
+    code += block->code;
+    code += string_format("j %s\n\n%s:\n\n", lbis.c_str(), lbend.c_str());
 
     return 0;
 }
 
 eval(PrintStmt) {
-    std::cout << printArgs->eval(vars) << std::endl;
+    args->eval(vars, data);
+    
+    code += args->code;
+    code += "\naddi $sp, $sp, -8\nsw $ra, 0($sp)\nsw $a0, 4($sp)\n\nli $a0, 10\njal print_char\n\nlw $ra, 0($sp)\nlw $a0, 4($sp)\naddi $sp, $sp, 8\n\n";
 
     return 0;
 }
 
 eval(PrintArgs) {
+
+    string_t label = getNewLabel();
+    code += string_format("\naddi $sp, $sp, -8\nsw $ra, 0($sp)\nsw $a0, 4($sp)\nla $a0, %s\njal print_str\nlw $ra, 0($sp)\nlw $a0, 4($sp)\naddi $sp, $sp, 8\n\n", label.c_str());
+    data += string_format("%s:\n.byte \"%s\",0\n\n", label.c_str(), literal.c_str());
+    if (optl_print_args != nullptr) {
+        optl_print_args->eval(vars, data);
+        code += optl_print_args->code;
+    }
     
     return 0;
 }
 
 eval(Optl_Print_Args) {
+    term->eval(vars, data);
+    code += string_format("\naddi $sp, $sp, -8\nsw $ra, 0($sp)\nsw $a0, 4($sp)\nmove $a0, %s\njal print_int\n\nlw $ra, 0($sp)\nlw $a0, 4($sp)\naddi $sp, $sp, 8\n\n", term->place.c_str());
+
+    if (optl_print_argsP != nullptr) {
+        optl_print_argsP->eval(vars, data);
+        code += optl_print_argsP->code;
+    }
 
     return 0;
 }
 
 eval(Optl_Print_ArgsP) {
+    code = "";
+    if (printArgs != nullptr) {
+        printArgs->eval(vars, data);
+        code += printArgs->code;
+    }
 
     return 0;
 }
 
 eval(Input) {
+    string_t label = getNewLabel();
+    place = getFreeReg();
+    code += string_format("\naddi $sp, $sp, -8\nsw $ra, 0($sp)\nsw $a0, 4($sp)\nla $a0, %s\njal print_str\n\njal read_int\nlw $ra, 0($sp)\nlw $a0, 4($sp)\naddi $sp, $sp, 8\n\nmove %s, $v0\n\n", label.c_str(), place.c_str());
+    data += string_format("%s:\n.byte \"%s\",0\n\n", label.c_str(), literal.c_str());
 
     return 0;
 }
