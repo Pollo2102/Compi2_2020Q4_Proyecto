@@ -192,16 +192,22 @@ eval(AddExpr) {
         }
         else if (expr1->isA(IdExpr_kind) && expr2->isA(NumExpr_kind)) {
             place = expr1->place;
+            code += expr1->code;
+            code += expr2->code;
             code += string_format("addi %s, %s, %d\n", place.c_str(), place.c_str(), expr2->val);
             setRegFree(expr2->place);
         }
         else if (expr1->isA(NumExpr_kind) && expr2->isA(IdExpr_kind)) {
             place = expr2->place;
+            code += expr1->code;
+            code += expr2->code;
             code += string_format("addi %s, %s, %d\n", place.c_str(), place.c_str(), expr1->val);
             setRegFree(expr1->place);
         }
         else if (expr1->isA(IdExpr_kind) && expr2->isA(IdExpr_kind)) {
             place = expr1->place;
+            code += expr1->code;
+            code += expr2->code;
             code += string_format("add %s, %s, %s\n", place.c_str(), place.c_str(), expr2->place.c_str());
             setRegFree(expr2->place);
         }
@@ -224,16 +230,22 @@ eval(SubExpr) {
         }
         else if (expr1->isA(IdExpr_kind) && expr2->isA(NumExpr_kind)) {
             place = expr1->place;
+            code += expr1->code;
+            code += expr2->code;
             code += string_format("addi %s, %s, -%d\n", place.c_str(), place.c_str(), expr2->val);
             setRegFree(expr2->place);
         }
         else if (expr1->isA(NumExpr_kind) && expr2->isA(IdExpr_kind)) {
             place = expr2->place;
+            code += expr1->code;
+            code += expr2->code;
             code += string_format("addi %s, %s, -%d\n", place.c_str(), place.c_str(), expr1->val);
             setRegFree(expr1->place);
         }
         else if (expr1->isA(IdExpr_kind) && expr2->isA(IdExpr_kind)) {
             place = expr1->place;
+            code += expr1->code;
+            code += expr2->code;
             code += string_format("sub %s, %s, %s\n", place.c_str(), place.c_str(), expr2->place.c_str());
             setRegFree(expr2->place);
         }
@@ -270,7 +282,25 @@ eval(DivExpr) {
 
     return 0;
  }
-eval(PowExpr) { return pow(expr1->eval(vars, data), expr2->eval(vars, data)); }
+eval(PowExpr) { 
+    string_t y = getFreeReg();
+    string_t ctr = getFreeReg();
+    string_t free = getFreeReg();
+    expr1->eval(vars, data);
+    expr2->eval(vars, data);
+
+    code += expr1->code;
+    code += expr2->code;
+
+    code += string_format("\nmove %s, %s\naddi %s, $zero, 1\nbegin_pow:\nslt %s, %s, %s\nbeq %s, $zero, end_pow\nmult %s, %s\nmflo %s\naddi %s, %s, 1\nj begin_pow\nend_pow:\n\n", y.c_str(), expr1->place.c_str(), ctr.c_str(), free.c_str(), ctr.c_str(), expr2->place.c_str(), free.c_str(), y.c_str(), expr1->place.c_str(), y.c_str(), ctr.c_str(), ctr.c_str()); /* 12 strings */
+    place = y;
+    setRegFree(ctr);
+    setRegFree(free);
+    setRegFree(expr1->place);
+    setRegFree(expr2->place);
+
+    return 0;
+ }
 eval(ModExpr) { 
     expr1->eval(vars, data);
     expr2->eval(vars, data);
@@ -313,8 +343,8 @@ eval(GEExpr) {
     code += expr1->code;
     code += expr2->code;
     code += string_format("\nslt %s, %s, %s\n", temp.c_str(), expr2->place.c_str(), expr1->place.c_str());
-    code += string_format("sub %s, %s, %s\n", expr2->place.c_str(), expr2->place.c_str(), expr1->place.c_str());
-    code += string_format("and %s, %s, %s\n\n", temp.c_str(), temp.c_str(), expr2->place.c_str());
+    code += string_format("sub %s, %s, %s\nbne %s, $zero, endGE\naddi %s, $zero, 1\nj endGE2\nendGE:\nmove %s, $zero\nendGE2:\n\n", expr2->place.c_str(), expr2->place.c_str(), expr1->place.c_str(), expr2->place.c_str(), expr2->place.c_str(), expr2->place.c_str());
+    code += string_format("or %s, %s, %s\n\n", temp.c_str(), temp.c_str(), expr2->place.c_str());
     setRegFree(expr1->place);
     setRegFree(expr2->place);
 
@@ -328,8 +358,8 @@ eval(LEExpr) {
     code += expr1->code;
     code += expr2->code;
     code += string_format("\nslt %s, %s, %s\n", temp.c_str(), expr1->place.c_str(), expr2->place.c_str());
-    code += string_format("sub %s, %s, %s\n", expr2->place.c_str(), expr2->place.c_str(), expr1->place.c_str());
-    code += string_format("and %s, %s, %s\n\n", temp.c_str(), temp.c_str(), expr2->place.c_str());
+    code += string_format("sub %s, %s, %s\nbne %s, $zero, endLE\naddi %s, $zero, 1\nj endLE2\nendLE:\nmove %s, $zero\nendLE2:\n\n", expr2->place.c_str(), expr2->place.c_str(), expr1->place.c_str(), expr2->place.c_str(), expr2->place.c_str(), expr2->place.c_str());
+    code += string_format("or %s, %s, %s\n\n", temp.c_str(), temp.c_str(), expr2->place.c_str());
     setRegFree(expr1->place);
     setRegFree(expr2->place);
 
@@ -341,7 +371,7 @@ eval(EqExpr) {
     place = expr1->place;
     code += expr1->code;
     code += expr2->code;
-    code += string_format("\nsub %s, %s, %s\n", expr1->place.c_str(), expr1->place.c_str(), expr2->place.c_str());
+    code += string_format("sub %s, %s, %s\nbne %s, $zero, endEQ\naddi %s, $zero, 1\nj endEQ2\nendEQ:\nmove %s, $zero\nendEQ2:\n\n", expr1->place.c_str(), expr2->place.c_str(), expr1->place.c_str(), expr1->place.c_str(), expr1->place.c_str(), expr1->place.c_str());
     setRegFree(expr2->place);
 
     return 0;
@@ -352,7 +382,7 @@ eval(NotExpr) {
     place = expr1->place;
     code += expr1->code;
     code += expr2->code;
-    code += string_format("\nsub %s, %s, %s\n", expr1->place.c_str(), expr1->place.c_str(), expr2->place.c_str());
+    code += string_format("sub %s, %s, %s\nbeq %s, $zero, endNE2\naddi %s, $zero, 1\nj endNE2\nendNE2:\n\n", expr1->place.c_str(), expr2->place.c_str(), expr1->place.c_str(), expr1->place.c_str(), expr1->place.c_str(), expr1->place.c_str());
     setRegFree(expr2->place);
 
     return 0;
@@ -467,7 +497,9 @@ eval(PrintArgs) {
 
 eval(Optl_Print_Args) {
     term->eval(vars, data);
+    code += term->code;
     code += string_format("\naddi $sp, $sp, -8\nsw $ra, 0($sp)\nsw $a0, 4($sp)\nmove $a0, %s\njal print_int\n\nlw $ra, 0($sp)\nlw $a0, 4($sp)\naddi $sp, $sp, 8\n\n", term->place.c_str());
+    setRegFree(term->place);
 
     if (optl_print_argsP != nullptr) {
         optl_print_argsP->eval(vars, data);

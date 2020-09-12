@@ -179,18 +179,18 @@ return_stmt: "return" term
 
 
 
-term: term "+" factor {  }
-     |  term "-" factor {  }
-     |  term "*" factor {  }
-     |  term "/" factor {  }
-     |  term "**" factor {  }
-     |  term "%" factor {  }
-     |  term "==" factor {  }
-     |  term "!=" factor {  }
-     |  term "<=" factor {  }
-     |  term ">=" factor {  }
-     |  term ">" factor {  }
-     |  term "<" factor {  }
+term: term "+" factor { $$ = new Ast::AddExpr($1, $3); }
+     |  term "-" factor { $$ = new Ast::SubExpr($1, $3); }
+     |  term "*" factor { $$ = new Ast::MulExpr($1, $3); }
+     |  term "/" factor { $$ = new Ast::DivExpr($1, $3); }
+     |  term "**" factor { $$ = new Ast::PowExpr($1, $3); }
+     |  term "%" factor { $$ = new Ast::ModExpr($1, $3); }
+     |  term "==" factor { $$ = new Ast::EqExpr($1, $3); }
+     |  term "!=" factor { $$ = new Ast::NotExpr($1, $3); }
+     |  term "<=" factor { $$ = new Ast::LEExpr($1, $3); }
+     |  term ">=" factor { $$ = new Ast::GEExpr($1, $3); }
+     |  term ">" factor { $$ = new Ast::GTExpr($1, $3); }
+     |  term "<" factor { $$ = new Ast::LTExpr($1, $3); }
      | factor   { $$ = $1; }
 ;
 
