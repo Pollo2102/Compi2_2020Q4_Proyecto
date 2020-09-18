@@ -433,6 +433,27 @@ eval(BlockStmt) {
 }
 
 eval(IfStmt) {
+    if (cond == nullptr) {
+        true_blk->eval(vars, data);
+        code += true_blk->code;
+        return 0;
+    }
+    else if (false_blk == nullptr) {
+        cond->eval(vars, data);
+        true_blk->eval(vars, data);
+
+        string_t lbif = getNewLabel();
+        string_t lbend = getNewLabel();
+
+        code += cond->code;
+
+        code += string_format("\nbeq %s, $zero, %s\n\n", cond->place.c_str(), lbif.c_str());
+        setRegFree(cond->place);
+        code += true_blk->code;
+        code += string_format("j %s\n\n%s:\n", lbend.c_str(), lbif.c_str());
+
+        return 0;
+    }
     cond->eval(vars, data);
     true_blk->eval(vars, data);
     false_blk->eval(vars, data);
@@ -442,10 +463,8 @@ eval(IfStmt) {
 
     code += cond->code;
 
-    if (!(cond->isA(NotExpr_kind)) && !(cond->isA(GEExpr_kind)) /* && !(cond->isA(LEExpr_kind)) */)
-        code += string_format("\nbeq %s, $zero, %s\n\n", cond->place.c_str(), lbif.c_str());
-    else
-        code += string_format("\nbne %s, $zero, %s\n\n", cond->place.c_str(), lbif.c_str());
+    code += string_format("\nbeq %s, $zero, %s\n\n", cond->place.c_str(), lbif.c_str());
+    setRegFree(cond->place);
     code += true_blk->code;
     code += string_format("j %s\n\n%s:\n", lbend.c_str(), lbif.c_str());
     code += false_blk->code;

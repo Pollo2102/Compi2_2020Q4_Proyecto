@@ -41,6 +41,7 @@ namespace Expr
 }
 
 Ast::NodeVector stmts;
+Ast::NodeVector tmp_blk;
 
 %}
 
@@ -87,7 +88,7 @@ Ast::NodeVector stmts;
 %token END 0 "EOF"
 %token TK_ERROR "unknown token"
 
-%type<Ast::BlockStmt *> expr2
+%type<Ast::BlockStmt *> expr2 
 %type<int> expr
 %type<Ast::Stmt *> exprP
 %type<Ast::Expr *> term
@@ -97,6 +98,8 @@ Ast::NodeVector stmts;
 %type<Ast::Input *> input
 %type<Ast::PrintStmt *> print
 %type<Ast::PrintArgs *> printArgs
+%type<Ast::IfStmt *> cond_stmt cond_stmtP
+%type<Ast::BlockStmt *> func_code
 %type<Ast::Optl_Print_Args *> optl_print_args
 %type<Ast::Optl_Print_ArgsP *> optl_print_argsP
 
@@ -107,7 +110,7 @@ expr: expr2 EOLP { root = new Ast::BlockStmt(stmts); }
 
 exprP:  asgn { $$ = $1; }
         | print { $$ = $1; }
-        | cond_stmt {  }
+        | cond_stmt { $$ = $1; }
         | while_stmt {  }
         | for_stmt {  }
         | func_def {  }
@@ -147,12 +150,12 @@ optl_print_argsP: "," printArgs { $$ = new Ast::Optl_Print_ArgsP($2); }
                 | %empty { $$ = nullptr; }
 ;
 
-cond_stmt: "if" term ":" func_code cond_stmtP
+cond_stmt: "if" term ":" func_code cond_stmtP { $$ = new Ast::IfStmt($2, $4, $5); }
 ;
 
-cond_stmtP: "elif" term ":" func_code cond_stmtP
-           | "else" ":" func_code 
-           | %empty
+cond_stmtP: "elif" term ":" func_code cond_stmtP { $$ = new Ast::IfStmt($2, $4, $5); }
+           | "else" ":" func_code { $$ = new Ast::IfStmt(nullptr, $3, nullptr); }
+           | %empty { $$ = nullptr; }
 ;
 
 while_stmt: "while" term ":" func_code
@@ -161,10 +164,14 @@ while_stmt: "while" term ":" func_code
 for_stmt: "for" TK_IDENT "in" TK_IDENT "(" term "," term ")" ":" func_code
 ;
 
-func_code: TK_EOL TK_INDENT exprP EOLP func_codeP dedent_prod
+func_code: TK_EOL TK_INDENT exprP EOLP func_codeP dedent_prod { 
+                tmp_blk.clear();
+                tmp_blk.insert(tmp_blk.begin(), $3);
+                $$ = new Ast::BlockStmt(tmp_blk);
+        }
 ;
 
-func_codeP: func_codeP exprP TK_EOL
+func_codeP: func_codeP exprP TK_EOL { tmp_blk.push_back($2); }
             | %empty
 ;
 
