@@ -413,6 +413,14 @@ eval(Literal) {
 eval(AssignStmt) {
     /* std::cout << expr->getKindName(); */
     expr->eval(vars, data);
+    auto it = vars.find(id);
+    if (it != vars.end()) {
+        code += expr->code;
+        code += string_format("sw %s, %d($fp)\n\n", expr->place.c_str(), getVarOffset(id));
+        setRegFree(expr->place);
+
+        return 0;
+    }
     vars.emplace(id, 0);
     var_table.push_back(std::make_tuple(id, 0));
     code += expr->code;
@@ -482,10 +490,7 @@ eval(WhileStmt) {
 
     code += string_format("%s:\n", lbis.c_str());
     code += cond->code;
-    if (!(cond->isA(NotExpr_kind)) && !(cond->isA(GEExpr_kind)) /* && !(cond->isA(LEExpr_kind)) */)
-        code += string_format("beq %s, $zero, %s\n\n", cond->place.c_str(), lbend.c_str());
-    else 
-        code += string_format("bne %s, $zero, %s\n\n", cond->place.c_str(), lbend.c_str());
+    code += string_format("beq %s, $zero, %s\n\n", cond->place.c_str(), lbend.c_str());
     code += block->code;
     code += string_format("j %s\n\n%s:\n\n", lbis.c_str(), lbend.c_str());
 
