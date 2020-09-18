@@ -100,6 +100,7 @@ Ast::NodeVector tmp_blk;
 %type<Ast::PrintArgs *> printArgs
 %type<Ast::IfStmt *> cond_stmt cond_stmtP
 %type<Ast::WhileStmt *> while_stmt
+%type<Ast::ForStmt *> for_stmt
 %type<Ast::BlockStmt *> func_code
 %type<Ast::Optl_Print_Args *> optl_print_args
 %type<Ast::Optl_Print_ArgsP *> optl_print_argsP
@@ -113,7 +114,7 @@ exprP:  asgn { $$ = $1; }
         | print { $$ = $1; }
         | cond_stmt { $$ = $1; }
         | while_stmt { $$ = $1; }
-        | for_stmt {  }
+        | for_stmt { $$ = $1; }
         | func_def {  }
         | return_stmt {  }
         | func_call {  }
@@ -162,7 +163,9 @@ cond_stmtP: "elif" term ":" func_code cond_stmtP { $$ = new Ast::IfStmt($2, $4, 
 while_stmt: "while" term ":" func_code { $$ = new Ast::WhileStmt($2, $4); }
 ;
 
-for_stmt: "for" TK_IDENT "in" TK_IDENT "(" term "," term ")" ":" func_code
+for_stmt: "for" TK_IDENT "in" TK_IDENT "(" term "," term ")" ":" func_code {
+        $$ = new Ast::ForStmt($2, $6, $8, $11);
+}
 ;
 
 func_code: TK_EOL TK_INDENT exprP EOLP func_codeP dedent_prod { 

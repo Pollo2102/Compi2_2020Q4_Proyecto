@@ -72,6 +72,11 @@
         throw 1;
     }
 
+    void deleteVar(std::string varName) {
+        int offset = getVarOffset(varName) / -4;
+        var_table.erase(var_table.begin() + offset);
+    }
+
     std::string getNewLabel() {
         return std::string("label" + std::to_string(labelNum++));
     }
@@ -165,18 +170,15 @@
     Stmt *false_blk;
 }
 
-%node ElseStmt Stmt = {
-    Stmt *block;
-}
-
 %node WhileStmt Stmt = {
     Expr *cond;
     Stmt *block;
 }
 
 %node ForStmt Stmt = {
-    NumExpr *cur_num;
-    NumExpr *last_num;
+    string_t iter;
+    Expr *first_num;
+    Expr *last_num;
     Stmt *block;
 }
 
@@ -553,11 +555,29 @@ eval(Input) {
 }
 
 eval(ForStmt) {
+    vars.emplace(iter, 0);
+    var_table.push_back(std::make_tuple(iter, 0));
+    first_num->eval(vars, data);
+    last_num->eval(vars, data);
+    block->eval(vars, data);
 
-    return 0;
-}
+    string_t lbis = getNewLabel();
+    string_t lbend = getNewLabel();
 
-eval(ElseStmt) {
+    string_t lowLim = getFreeReg();
+    string_t upLim = getFreeReg();
+
+    code += string_format("li %s, %d\nli %s, %d\n%s:\n", lowLim.c_str(), first_num->val, upLim.c_str(), last_num->val, lbis.c_str());
+    /* Adding the range var to the stack */
+    int offset = getVarOffset(iter);
+    code += "\naddi $sp, $sp, -4\n";
+    code += string_format("sw %s, %d($fp)\n\n", lowLim.c_str(), offset);
+
+    code += string_format("beq %s, %s, %s\n\n", lowLim.c_str(), upLim.c_str(), lbend.c_str());
+    code += block->code;
+    code += string_format("addi %s, %s, 1\nsw %s, %d($fp)\n\n", lowLim.c_str(), lowLim.c_str(), lowLim.c_str(), offset);
+    code += string_format("j %s\n\n%s:\n\n", lbis.c_str(), lbend.c_str());
+    /* vars.erase(iter); */
 
     return 0;
 }
